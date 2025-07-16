@@ -1,0 +1,8 @@
+{
+    "license": "zlib",
+    "native": true,
+    "requirements": [],
+    "source": "https://github.com/python-b5/lily-json",
+    "summary": "A simple, compliant JSON parser and serializer for Lily.",
+    "version": "v1.0.0"
+}

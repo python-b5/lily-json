@@ -1,0 +1,1287 @@
+#[
+    lily-json/base_json.lily
+    by python-b5
+
+    This is the full source code for lily-json. The main `json.lily` file simply
+    imports all the public symbols from here.
+]#
+
+import (is_nan, pow, infinity, nan) math
+
+class JSONSyntaxError(message: String) < Exception(message) {}
+
+class Token(
+    public var @lexeme: String,
+    private var @line: Integer, private var @column: Integer,
+    private var @line_string: String
+) {
+    public define error(message: String, index: *Integer = 0) {
+        var line_prefix = " {} ".format(@line)
+        var line_prefix_size = line_prefix.size()
+
+        var outside_prefix = ByteString
+            .create(line_prefix_size, ' ')
+            .encode()
+            .unwrap()
+
+        var stripped = @line_string.lstrip(" \t")
+
+        # A space is needed after the ending newline to prevent Lily from
+        # stripping out said newline. To correctly imitate Lily's own error
+        # messages, we need a blank line after the context.
+        raise JSONSyntaxError(
+            "{}\n\n{}|\n{}| {}\n{}|{}^\n "
+            .format(
+                message,
+                outside_prefix,
+                line_prefix, stripped,
+                outside_prefix,
+                ByteString.create(
+                    @column - (@line_string.size() - stripped.size()) + index,
+                    ' '
+                ).encode().unwrap()
+            )
+        )
+    }
+
+    private define read_escaped_codepoint(index: Integer): Integer {
+        var codepoint = 0
+
+        for i in index...index + 3: {
+            var char = @lexeme[i]
+            if char >= '0' && char <= '9': {
+                codepoint = codepoint << 4 | char.to_i() - '0'.to_i()
+            elif char >= 'A' && char <= 'F':
+                codepoint = codepoint << 4 | char.to_i() - 'A'.to_i() + 10
+            elif char >= 'a' && char <= 'f':
+                codepoint = codepoint << 4 | char.to_i() - 'a'.to_i() + 10
+            else:
+                error("Expected a hex digit, not {}.".format(char), i)
+            }
+        }
+
+        return codepoint
+    }
+
+    public define parse_string: String {
+        var size = @lexeme.size()
+        if size == 1: {
+            error("Unterminated string.", 1)
+        }
+
+        var no_escape_sequences = true
+        for i in 1...size - 2: {
+            var char = @lexeme[i]
+            if char == '\\': {
+                no_escape_sequences = false
+            elif char < ' ':
+                error("Strings may not contain control characters.", i)
+            }
+        }
+
+        # Most strings probably won't have escape sequences, so for those we can
+        # improve performance by just skipping all the extra logic we'd have to
+        # do otherwise.
+        if no_escape_sequences: {
+            if @lexeme[-1] != '"': {
+                error("Unterminated string.", size)
+            }
+
+            return @lexeme.slice(1, -1)
+        }
+
+        # We know the first character is '"', and so can safely skip it.
+        var index = 1
+
+        # To improve performance, chunks of text between escape sequences are
+        # copied into the output buffer all at once.
+        var chunk_start = 1
+
+        # For simple cases, we didn't need to bother converting the lexeme to a
+        # `ByteString`. However, to allow us to use `ByteString.replace_bytes`,
+        # we must do that conversion now.
+        var input = @lexeme.to_bytestring()
+
+        # The output string can't be any larger than this. The `- 2` is for the
+        # enclosing '"' characters.
+        var output = ByteString.create(size - 2)
+        var output_index = 0
+
+        var closed = false
+
+        while index < size: {
+            # We could subscript the original lexeme here as well, as `String`s
+            # also can be subscripted for `Byte`s - `input` is just used here
+            # for consistency (and, maybe, it's slightly faster to access a
+            # local variable than an instance one...?). In fact,
+            # `Token.read_escaped_codepoint` does just use `@lexeme`, so that we
+            # don't have to pass `input` to it as an argument.
+            var char = input[index]
+
+            if char == '"': {
+                closed = true
+                break
+            }
+
+            if index == size - 1 && char != '"': {
+                error("Unterminated string.", size)
+            }
+
+            if char == '\\': {
+                if index > chunk_start: {
+                    output.replace_bytes(
+                        output_index, input, chunk_start, index
+                    )
+
+                    output_index += index - chunk_start
+                }
+
+                index += 1
+                char = input[index]
+                index += 1
+
+                if char == '"': {
+                    output[output_index] = '\"'
+                    output_index += 1
+                elif char == '\\':
+                    output[output_index] = '\\'
+                    output_index += 1
+                elif char == '/':
+                    output[output_index] = '/'
+                    output_index += 1
+                elif char == 'b':
+                    output[output_index] = '\b'
+                    output_index += 1
+                elif char == 'f':
+                    output[output_index] = '\012'
+                    output_index += 1
+                elif char == 'n':
+                    output[output_index] = '\n'
+                    output_index += 1
+                elif char == 'r':
+                    output[output_index] = '\r'
+                    output_index += 1
+                elif char == 't':
+                    output[output_index] = '\t'
+                    output_index += 1
+                elif char == 'u':
+                    if index + 3 >= size: {
+                        error("'\\u' must be followed by four hex digits.")
+                    }
+
+                    var codepoint = read_escaped_codepoint(index)
+                    index += 3
+
+                    # JSON permits surrogate pairs.
+                    if codepoint >= 0xD800 && codepoint <= 0xDBFF: {
+                        if (
+                            index + 6 >= size
+                            || input[index + 1] != '\\'
+                            || input[index + 2] != 'u'
+                        ): {
+                            error(
+                                "High surrogates must precede low surrogates."
+                            )
+                        }
+
+                        var low_surrogate = read_escaped_codepoint(index + 3)
+                        index += 6
+
+                        if low_surrogate < 0xDC00 || low_surrogate > 0xDFFF: {
+                            error(
+                                "Low surrogates must be in the range DC00-DFFF."
+                            )
+                        }
+
+                        codepoint = 0x10000 + (
+                            codepoint - 0xD800 << 10
+                        ) + low_surrogate - 0xDC00
+                    elif codepoint >= 0xDC00 && codepoint <= 0xDFFF:
+                        error("Low surrogates must follow high surrogates.")
+                    }
+
+                    if codepoint <= 0x7F: {
+                        output[output_index] = codepoint.to_byte()
+                        output_index += 1
+                    elif codepoint <= 0x7FF:
+                        output[output_index] = (
+                            (codepoint >> 6 | 0xC0).to_byte()
+                        )
+
+                        output[output_index + 1] = (
+                            (codepoint & 0x3F | 0x80).to_byte()
+                        )
+
+                        output_index += 2
+                    elif codepoint <= 0xFFFF:
+                        output[output_index] = (
+                            (codepoint >> 12 | 0xE0).to_byte()
+                        )
+
+                        output[output_index + 1] = (
+                            (codepoint >> 6 & 0x3F | 0x80).to_byte()
+                        )
+
+                        output[output_index + 2] = (
+                            (codepoint & 0x3F | 0x80).to_byte()
+                        )
+
+                        output_index += 3
+                    else:
+                        output[output_index] = (
+                            (codepoint >> 18 & 0x07 | 0xF0).to_byte()
+                        )
+
+                        output[output_index + 1] = (
+                            (codepoint >> 12 & 0x3F | 0x80).to_byte()
+                        )
+
+                        output[output_index + 2] = (
+                            (codepoint >> 6 & 0x3F | 0x80).to_byte()
+                        )
+
+                        output[output_index + 3] = (
+                            (codepoint & 0x3F | 0x80).to_byte()
+                        )
+
+                        output_index += 4
+                    }
+                else:
+                    error("{} is not a valid escape sequence.".format(char))
+                }
+
+                chunk_start = index
+            elif char < ' ':
+                error("Strings may not contain control characters.", index)
+            else:
+                index += 1
+            }
+        }
+
+        if !closed: {
+            error("Unterminated string.", size)
+        }
+
+        # Unless the string ended with an escape sequence, the last chunk won't
+        # have been copied yet.
+        if index > chunk_start: {
+            output.replace_bytes(output_index, input, chunk_start, index)
+            output_index += index - chunk_start
+        }
+
+        # This probably isn't compliant with the JSON specification. However,
+        # it's not idiomatic in Lily (and inconvenient for the user) to use a
+        # `ByteString` for JSON strings, so it's a sacrifice we have to make.
+        # There shouldn't be all that much JSON out there with escape sequences
+        # producing invalid UTF-8 data, though, so it shouldn't affect most
+        # people.
+        var option = output.slice(0, output_index).encode()
+        if option == None: {
+            error("String is not valid UTF-8 - check your escape sequences.")
+        }
+
+        return option.unwrap()
+    }
+
+    public define parse_number: Double {
+        var size = @lexeme.size()
+        var index = 0
+
+        var negative = false
+        if @lexeme[index] == '-': {
+            negative = true
+            index += 1
+        }
+
+        var number = 0.0
+
+        var digits_provided = false
+        var decimal_provided = false
+        var exponent_provided = false
+
+        while index < size: {
+            var char = @lexeme[index]
+            if char >= '1' && char <= '9': {
+                number = number * 10.0 + (char.to_i() - '0'.to_i()).to_d()
+                digits_provided = true
+            elif char == '0':
+                if digits_provided || index == size - 1: {
+                    number *= 10.0
+                    digits_provided = true
+                else:
+                    var next_char = @lexeme[index + 1]
+                    if (
+                        next_char == '.'
+                        || next_char == 'e' || next_char == 'E'
+                    ): {
+                        number *= 10.0
+                        digits_provided = true
+                    else:
+                        error("0 may not precede other digits.", index)
+                    }
+                }
+            elif char == '.':
+                if digits_provided: {
+                    decimal_provided = true
+                else:
+                    error("Numbers may not start with a decimal point.", index)
+                }
+            elif char == 'e' || char == 'E':
+                if digits_provided: {
+                    exponent_provided = true
+                else:
+                    error("Numbers may not start with an exponent.", index)
+                }
+            elif digits_provided:
+                error(
+                    "Expected a digit, '.', 'e', or 'E', not {}.".format(char),
+                    index
+                )
+            else:
+                error("Expected a digit, not {}.".format(char), index)
+            }
+
+            index += 1
+
+            if decimal_provided || exponent_provided: {
+                break
+            }
+        }
+
+        if !digits_provided: {
+            error("Numbers must contain at least one digit.")
+        }
+
+        if decimal_provided: {
+            var decimal = 0
+            var decimal_places = 0
+
+            while index < size: {
+                var char = @lexeme[index]
+                if char >= '0' && char <= '9': {
+                    decimal = decimal * 10 + char.to_i() - '0'.to_i()
+                    decimal_places += 1
+                elif char == 'e' || char == 'E':
+                    if decimal_places > 0: {
+                        exponent_provided = true
+                    else:
+                        error("Expected a digit, not {}.".format(char), index)
+                    }
+                elif digits_provided:
+                    error(
+                        "Expected a digit, 'e', or 'E', not {}.".format(char),
+                        index
+                    )
+                else:
+                    error("Expected a digit, not {}.".format(char), index)
+                }
+
+                index += 1
+
+                if exponent_provided: {
+                    break
+                }
+            }
+
+            if decimal_places == 0: {
+                error("Numbers may not end with a decimal point.", size - 1)
+            }
+
+            number += decimal.to_d() / pow(10.0, decimal_places.to_d())
+        }
+
+        if exponent_provided: {
+            if index == size: {
+                error("Numbers may not end with an exponent prefix.", size - 1)
+            }
+
+            var sign_specified = false
+            var exponent_negative = false
+
+            if @lexeme[index] == '+': {
+                index += 1
+                sign_specified = true
+            elif @lexeme[index] == '-':
+                index += 1
+                sign_specified = true
+                exponent_negative = true
+            }
+
+            if index == size: {
+                error("Numbers may not end with an exponent prefix.", size - 1)
+            }
+
+            var exponent = 0
+            var exponent_digits_provided = false
+
+            while index < size: {
+                var char = @lexeme[index]
+                if char >= '0' && char <= '9': {
+                    exponent = exponent * 10 + char.to_i() - '0'.to_i()
+                    exponent_digits_provided = true
+                elif !exponent_digits_provided || sign_specified:
+                    error("Expected a digit, not {}.".format(char), index)
+                else:
+                    error(
+                        "Expected a digit, '+', or '-', not {}.".format(char),
+                        index
+                    )
+                }
+
+                index += 1
+            }
+
+            if exponent_negative: {
+                number *= pow(10.0, -exponent.to_d())
+            else:
+                number *= pow(10.0, exponent.to_d())
+            }
+        }
+
+        if negative: {
+            return number * -1.0
+        else:
+            return number
+        }
+    }
+}
+
+scoped enum Value {
+    Object(Hash[String, Value]),
+    Array(List[Value]),
+    String(String),
+    Number(Double),
+    Boolean(Boolean),
+    Null
+
+    define serialize(
+        :format format: *Boolean = false,
+        :non_finite non_finite: *Boolean = true
+    ): String {
+        var tokens: List[String] = []
+        var stack: List[Tuple[Value, Integer]] = [<[self, 0]>]
+
+        while stack.size(): {
+            var top = stack[-1]
+            var value = top[0]
+
+            match value: {
+                case Value.Object(object):
+                    # The auto-formatter would insert extraneous newlines
+                    # between the brackets for empty objects if we didn't do
+                    # this. Even ignoring that, though, this is probably
+                    # faster...?
+                    if object.size() == 0: {
+                        tokens.push("{}")
+                        stack.pop()
+                        continue
+                    }
+
+                    var index = top[1]
+
+                    if index == 0: {
+                        tokens.push("{")
+                    }
+
+                    var keys = object.keys()
+                    if index < keys.size(): {
+                        if index > 0: {
+                            tokens.push(",")
+                        }
+
+                        var key = keys[index]
+
+                        tokens.push("\"{}\"".format(key))
+                        tokens.push(":")
+
+                        top[1] += 1
+                        stack.push(<[object[key], 0]>)
+                    else:
+                        tokens.push("}")
+                        stack.pop()
+                    }
+
+                    continue
+                case Value.Array(array):
+                    # Same as with objects.
+                    if array.size() == 0: {
+                        tokens.push("[]")
+                        stack.pop()
+                        continue
+                    }
+
+                    var index = top[1]
+
+                    if index == 0: {
+                        tokens.push("[")
+                    }
+
+                    if index < array.size(): {
+                        if index > 0: {
+                            tokens.push(",")
+                        }
+
+                        top[1] += 1
+                        stack.push(<[array[index], 0]>)
+                    else:
+                        tokens.push("]")
+                        stack.pop()
+                    }
+
+                    continue
+                case Value.String(string):
+                    # Unlike when parsing strings, the serialized JSON string
+                    # may be larger than the original `String`, so there's no
+                    # way to know an upper bound in advance to create a buffer.
+                    # We just have to make do with a (slower...) `List`-based
+                    # approach. However, we can still use chunking, meaning
+                    # performance should remain perfectly acceptable most of the
+                    # time.
+
+                    var substrings: List[String] = ["\""]
+                    var chunk_start = 0
+
+                    var max_index = string.size() - 1
+                    for i in 0...max_index: {
+                        var char = string[i]
+                        if char < ' ': {
+                            if i > chunk_start: {
+                                substrings.push(string.slice(chunk_start, i))
+                            }
+
+                            chunk_start = i
+
+                            if char == '\"': {
+                                substrings.push("\\\"")
+                            elif char == '\\':
+                                substrings.push("\\\\")
+                            elif char == '\b':
+                                substrings.push("\\b")
+                            elif char == '\012':
+                                substrings.push("\\f")
+                            elif char == '\n':
+                                substrings.push("\\n")
+                            elif char == '\r':
+                                substrings.push("\\r")
+                            elif char == '\t':
+                                substrings.push("\\t")
+                            else:
+                                # Other control characters still aren't allowed
+                                # by the JSON specification to be included
+                                # as-is, but there aren't nice escape sequences
+                                # for them. These characters likely hardly ever
+                                # appear in real JSON data, but nonetheless we
+                                # must handle them.
+                                var codepoint = char.to_i().to_hex().slice(2)
+                                if codepoint.size() == 1: {
+                                    # `Integer.to_hex` does not include leading
+                                    # `0` digits.
+                                    substrings.push(
+                                        "\\u000{}".format(codepoint)
+                                    )
+                                else:
+                                    substrings.push("\\u00{}".format(codepoint))
+                                }
+                            }
+                        }
+                    }
+
+                    # Unless the string ended with an escape sequence, the last
+                    # chunk won't have been copied yet.
+                    if chunk_start != max_index: {
+                        substrings.push(string.slice(chunk_start))
+                    }
+
+                    substrings.push("\"")
+                    tokens.push(substrings.join())
+                case Value.Number(number):
+                    # Lily interpolates the non-finite numbers as "inf", "-inf",
+                    # and "nan", but to match other JSON implementations, (which
+                    # themselves are matching JavaScript's syntax for these
+                    # numbers) we want to serialize them as "Infinity",
+                    # "-Infinity", and "NaN" instead.
+                    if number == infinity: {
+                        if non_finite: {
+                            tokens.push("Infinity")
+                        else:
+                            raise ValueError("Non-finite numbers are disabled.")
+                        }
+                    elif number == -infinity:
+                        if non_finite: {
+                            tokens.push("-Infinity")
+                        else:
+                            raise ValueError("Non-finite numbers are disabled.")
+                        }
+                    elif is_nan(number):
+                        if non_finite: {
+                            tokens.push("NaN")
+                        else:
+                            raise ValueError("Non-finite numbers are disabled.")
+                        }
+                    else:
+                        tokens.push(number ++ "")
+                    }
+                case Value.Boolean(boolean):
+                    if boolean: {
+                        tokens.push("true")
+                    else:
+                        tokens.push("false")
+                    }
+                case Value.Null:
+                    tokens.push("null")
+            }
+
+            stack.pop()
+        }
+
+        if format: {
+            var substrings: List[String] = []
+            var indent = ""
+            var previous_token = ""
+
+            tokens.each(|token|
+                if token == "{" || token == "[": {
+                    if (
+                        previous_token != ""
+                        && previous_token != "["
+                        && previous_token != "," && previous_token != ":"
+                    ): {
+                        substrings.push("\n{}{}".format(indent, token))
+                    else:
+                        substrings.push(token)
+                    }
+
+                    indent = indent ++ "    "
+                    substrings.push("\n{}".format(indent))
+                elif token == "}" || token == "]":
+                    indent = indent.slice(0, indent.size() - 4)
+                    substrings.push("\n{}{}".format(indent, token))
+                elif token == ",":
+                    substrings.push("{}\n{}".format(token, indent))
+                elif token == ":":
+                    substrings.push(token)
+                    substrings.push(" ")
+                else:
+                    substrings.push(token)
+                }
+
+                previous_token = token
+            )
+
+            return substrings.join()
+        }
+
+        return tokens.join()
+    }
+
+    define serialize_file(
+        path: String,
+        :format format: *Boolean = false,
+        :non_finite non_finite: *Boolean = true
+    ) {
+        File.write_to_path(path, serialize(format))
+    }
+
+    define as_hash: Hash[String, Value] {
+        with self as Value.Object(object): {
+            return object
+        }
+
+        raise ValueError("Value is not an object.")
+    }
+
+    define as_list: List[Value] {
+        with self as Value.Array(array): {
+            return array
+        }
+
+        raise ValueError("Value is not an array.")
+    }
+
+    define as_string: String {
+        with self as Value.String(string): {
+            return string
+        }
+
+        raise ValueError("Value is not a string.")
+    }
+
+    define as_double: Double {
+        with self as Value.Number(number): {
+            return number
+        }
+
+        raise ValueError("Value is not a number.")
+    }
+
+    define as_integer: Integer {
+        with self as Value.Number(number): {
+            var integer = number.to_i()
+            if integer.to_d() != number: {
+                raise ValueError("Value is not an integer.")
+            }
+
+            return integer
+        }
+
+        raise ValueError("Value is not a number.")
+    }
+
+    define as_boolean: Boolean {
+        with self as Value.Boolean(boolean): {
+            return boolean
+        }
+
+        raise ValueError("Value is not a boolean.")
+    }
+
+    define get(key: String): Value {
+        with self as Value.Object(object): {
+            try: {
+                return object[key]
+            except KeyError:
+                raise KeyError("No value for key '{}'.".format(key))
+            }
+        }
+
+        raise ValueError("Value is not an object.")
+    }
+
+    define at(index: Integer): Value {
+        with self as Value.Array(array): {
+            try: {
+                return array[index]
+            except IndexError:
+                raise IndexError("Index {} is out of range.".format(index))
+            }
+        }
+
+        raise ValueError("Value is not an array.")
+    }
+
+    define each(fn: Function(Value)) {
+        match self: {
+            case Value.Object(object):
+                object.each_value(fn)
+            case Value.Array(array):
+                array.each(fn)
+            else:
+                raise ValueError("Value is not an object or array.")
+        }
+    }
+
+    define each_with_key(fn: Function(String, Value)) {
+        with self as Value.Object(object): {
+            object.each_pair(fn)
+        }
+
+        raise ValueError("Value is not an object.")
+    }
+
+    define each_with_index(fn: Function(Integer, Value)) {
+        with self as Value.Array(array): {
+            # `List.each_with_index` expects a `Function` that recieves the
+            # index last, as opposed to `Hash.each_pair` which passes the key
+            # first. I'd like `Value.each_with_index` and `Value.each_with_key`
+            # to be consistent with each other, and I prefer the latter
+            # behavior, so the `Value` and index must be swapped here.
+            #
+            # (I'm not sure what the fastest approach is for this. I figured,
+            # since `List.each_with_index` is implemented in C, it's probably
+            # still faster than manually looping even with the argument swap,
+            # but I haven't actually done any benchmarks, so it could go either
+            # way. It shouldn't really matter, anyway, unless working with an
+            # excessively large JSON database.)
+            array.each_with_index(|value, index| fn(index, value))
+        }
+
+        raise ValueError("Value is not an array.")
+    }
+}
+
+scoped enum StackFrame {
+    Object(Hash[String, Value], Option[String]),
+    Array(List[Value])
+}
+
+class Parser(
+    private var @json: String,
+    private var @comments: Boolean,
+    private var @trailing_commas: Boolean,
+    private var @non_finite: Boolean
+) {
+    private var @size = @json.size()
+    if @size == 0: {
+        raise JSONSyntaxError("Nothing to parse.")
+    }
+
+    private var @index = 0
+    private var @line = 1
+    private var @column = 1
+    private var @line_string = @json.slice(0, @json.find("\n").unwrap_or(@size))
+
+    private var @stack: List[StackFrame] = []
+
+    public define eof_error(message: String) {
+        var lines = @json.split("\n")
+        var line_string = lines[-1]
+
+        var stripped = line_string.lstrip(" \t")
+        var stripped_size = stripped.size()
+
+        # There's not much point displaying an empty line. Lily also does this
+        # check for its own messages.
+        if stripped_size == 0: {
+            raise JSONSyntaxError(message)
+        }
+
+        var line_prefix = " {} ".format(lines.size())
+        var line_prefix_size = line_prefix.size()
+
+        var outside_prefix = ByteString
+            .create(line_prefix_size, ' ')
+            .encode()
+            .unwrap()
+
+        raise JSONSyntaxError(
+            "{}\n\n{}|\n{}| {}\n{}|{}^\n "
+            .format(
+                message,
+                outside_prefix,
+                line_prefix, stripped,
+                outside_prefix,
+                ByteString.create(stripped_size + 1, ' ').encode().unwrap()
+            )
+        )
+    }
+
+    private define read_token: Option[Token] {
+        var char = '\0'
+
+        while @index < @size: {
+            char = @json[@index]
+            if char == '\n': {
+                @index += 1
+                @line += 1
+                @column = 1
+
+                @line_string = @json.slice(
+                    @index, @json.find("\n", @index).unwrap_or(@size)
+                )
+            elif char == ' ' || char == '\t' || char == '\r':
+                @index += 1
+                @column += 1
+            elif @comments && char == '/' && @index < @size - 1:
+                var next_char = @json[@index + 1]
+                if next_char == '/': {
+                    @index += 2
+                    @column += 2
+
+                    while @index < @size: {
+                        char = @json[@index]
+                        @index += 1
+
+                        if char == '\n': {
+                            @line += 1
+                            @column = 1
+
+                            @line_string = @json.slice(
+                                @index,
+                                @json.find("\n", @index).unwrap_or(@size)
+                            )
+
+                            break
+                        }
+
+                        @column += 1
+                    }
+
+                    if @index == @size: {
+                        return None
+                    }
+                elif next_char == '*':
+                    @index += 2
+                    @column += 2
+
+                    var found_asterisk = false
+                    while @index < @size: {
+                        char = @json[@index]
+                        @index += 1
+
+                        if found_asterisk: {
+                            if char == '/': {
+                                break
+                            else:
+                                found_asterisk = false
+                            }
+                        elif char == '*':
+                            found_asterisk = true
+                        elif char == '\n':
+                            @line += 1
+                            @column = 1
+
+                            @line_string = @json.slice(
+                                @index,
+                                @json.find("\n", @index).unwrap_or(@size)
+                            )
+
+                            continue
+                        }
+
+                        @column += 1
+                    }
+
+                    if @index == @size: {
+                        eof_error("Unterminated multi-line comment.")
+                    }
+                }
+            else:
+                break
+            }
+        }
+
+        if @index == @size: {
+            return None
+        }
+
+        var start = @index
+        @index += 1
+
+        if char == '"': {
+            # Strings are a bit more involved to lex than the other token types.
+            # We're forced to iterate through the whole string, because '"' only
+            # closes the string if it is not escaped.
+            var escape_next_char = false
+            while @index < @size: {
+                char = @json[@index]
+                @index += 1
+
+                if escape_next_char: {
+                    escape_next_char = false
+                    continue
+                }
+
+                if char == '\\': {
+                    escape_next_char = true
+                elif char == '"':
+                    break
+                elif char == '\n':
+                    @index -= 1
+                    break
+                }
+            }
+        elif char >= '0' && char <= '9' || char == '-':
+            # "-Infinity" must be handled here, since it starts with a negative
+            # sign.
+            if (
+                @non_finite && char == '-'
+                && @json.slice(@index, @index + 8) == "Infinity"
+            ): {
+                @index += 8
+            else:
+                while @index < @size: {
+                    char = @json[@index]
+                    if (
+                        (char < '0' || char > '9')
+                        && char != '.'
+                        && char != 'e' && char != 'E'
+                        && char != '-' && char != '+'
+                    ): {
+                        break
+                    }
+
+                    @index += 1
+                }
+            }
+        elif (
+            char >= 'a' && char <= 'z'
+            || char >= 'A' && char <= 'Z'
+        ):
+            # This lexes "words" - just sequences of letters. It might be more
+            # "ideal" for error messages to use full JavaScript identifiers
+            # instead, but those would be a ton of work to lex for little
+            # benefit. This is enough to parse "true", "false", "null",
+            # "Infinity", and "NaN", which is all we really need.
+            while @index < @size: {
+                char = @json[@index]
+                if (
+                    (char < 'a' || char > 'z')
+                    && (char < 'A' || char > 'Z')
+                ): {
+                    break
+                }
+
+                @index += 1
+            }
+        }
+
+        var token: Option[Token] = None
+        if @index == start + 1: {
+            # If a longer lexeme was not found in the above conditional chain,
+            # the returned lexeme will consist of a single character (which is
+            # sufficient for JSON's delimiters).
+            #
+            # Control characters should be escaped, or else error messages will
+            # not display as expected. We accomplish this by relying on Lily's
+            # `Byte` interpolation. This only matters for single-character
+            # lexemes, so we only have to worry about the first character.
+            #
+            # When Lily interpolates `Byte`s, it surrounds them with
+            # apostrophes. We don't want that, so we have to manually remove
+            # them (I wish there was a better way to handle this...).
+            token = Some(Token(
+                (@json[start] ++ "").slice(1, -1),
+                @line, @column, @line_string
+            ))
+        else:
+            token = Some(Token(
+                @json.slice(start, @index), @line, @column, @line_string
+            ))
+        }
+
+        @column += @index - start
+        return token
+    }
+
+    public define expect_token(expected: String): Token {
+        var option = read_token()
+        if option == None: {
+            eof_error("Expected {}, not end of file.".format(expected))
+        }
+
+        return option.unwrap()
+    }
+
+    public define process_value(value: Value): Option[Value] {
+        if @stack.size(): {
+            match @stack[-1]: {
+                case StackFrame.Object(object, name):
+                    object[name.unwrap()] = value
+                case StackFrame.Array(array):
+                    array.push(value)
+            }
+
+            return None
+        else:
+            return Some(value)
+        }
+    }
+
+    public define parse: Value {
+        # This is set to Some once a top-level value has been fully parsed.
+        var return_value: Option[Value] = None
+
+        while true: {
+            with return_value as Some(value): {
+                with read_token() as Some(token): {
+                    token.error("Only one top-level value is allowed.")
+                }
+
+                return value
+            }
+
+            var option = read_token()
+            if option == None: {
+                if @stack.size(): {
+                    match @stack[-1]: {
+                        case StackFrame.Object(_, _):
+                            eof_error("Expected ',' or '}', not end of file.")
+                        case StackFrame.Array(_):
+                            eof_error("Expected ',' or ']', not end of file.")
+                    }
+                else:
+                    raise JSONSyntaxError("Nothing to parse.")
+                }
+            }
+
+            var token = option.unwrap()
+            var lexeme = token.lexeme
+
+            var expected = "a value"
+            if @stack.size(): {
+                match @stack[-1]: {
+                    case StackFrame.Object(object, name):
+                        if lexeme == "}": {
+                            @stack.pop()
+                            return_value = process_value(Value.Object(object))
+                            continue
+                        }
+
+                        var new_name = ""
+                        if name == None: {
+                            if lexeme[0] != '"': {
+                                token.error(
+                                    "Expected a string or '}}', not '{}'."
+                                    .format(lexeme)
+                                )
+                            }
+
+                            new_name = token.parse_string()
+                        else:
+                            if lexeme != ",": {
+                                token.error(
+                                    "Expected ',' or '}}', not '{}'."
+                                    .format(lexeme)
+                                )
+                            }
+
+                            if @trailing_commas: {
+                                token = expect_token("a string or '}'")
+                                lexeme = token.lexeme
+
+                                if lexeme == "}": {
+                                    @stack.pop()
+                                    return_value = process_value(
+                                        Value.Object(object)
+                                    )
+
+                                    continue
+                                }
+
+                                if lexeme[0] != '"': {
+                                    token.error(
+                                        "Expected a string or '}}', not '{}'."
+                                        .format(lexeme)
+                                    )
+                                }
+
+                                new_name = token.parse_string()
+                            else:
+                                token = expect_token("a string")
+                                lexeme = token.lexeme
+
+                                if lexeme[0] != '"': {
+                                    token.error(
+                                        "Expected a string, not '{}'."
+                                        .format(lexeme)
+                                    )
+                                }
+
+                                new_name = token.parse_string()
+                            }
+                        }
+
+                        token = expect_token(":")
+                        lexeme = token.lexeme
+
+                        if lexeme != ":": {
+                            token.error(
+                                "Expected ':', not '{}'.".format(lexeme)
+                            )
+                        }
+
+                        token = expect_token("a value")
+                        lexeme = token.lexeme
+
+                        @stack[-1] = StackFrame.Object(object, Some(new_name))
+                    case StackFrame.Array(array):
+                        if lexeme == "]": {
+                            @stack.pop()
+                            return_value = process_value(Value.Array(array))
+                            continue
+                        }
+
+                        if array.size(): {
+                            if lexeme != ",": {
+                                token.error(
+                                    "Expected ',' or ']', not '{}'."
+                                    .format(lexeme)
+                                )
+                            }
+
+                            if @trailing_commas: {
+                                token = expect_token("a value or ']'")
+                                lexeme = token.lexeme
+
+                                if lexeme == "]": {
+                                    @stack.pop()
+                                    return_value = process_value(
+                                        Value.Array(array)
+                                    )
+
+                                    continue
+                                }
+
+                                expected = "a value or ']'"
+                            else:
+                                token = expect_token("a value")
+                                lexeme = token.lexeme
+                            }
+                        }
+                }
+            }
+
+            # Some tokens are terminals, and require no further parsing.
+            if lexeme == "{": {
+                @stack.push(StackFrame.Object([], None))
+            elif lexeme == "[":
+                @stack.push(StackFrame.Array([]))
+            elif lexeme == "null":
+                return_value = process_value(Value.Null)
+            elif lexeme == "true":
+                return_value = process_value(Value.Boolean(true))
+            elif lexeme == "false":
+                return_value = process_value(Value.Boolean(false))
+            else:
+                # These values aren't permitted by the JSON specification, but
+                # they can sometimes be useful, and so JSON implementations
+                # (like, for instance, Python's) often allow them anyway.
+                # lily-json allows them by default.
+                if @non_finite: {
+                    if lexeme == "Infinity": {
+                        return_value = process_value(Value.Number(infinity))
+                        continue
+                    elif lexeme == "-Infinity":
+                        return_value = process_value(Value.Number(-infinity))
+                        continue
+                    elif lexeme == "NaN":
+                        return_value = process_value(Value.Number(nan))
+                        continue
+                    }
+                }
+
+                # Otherwise, we can infer the token type unambiguously from the
+                # first character.
+                var char = lexeme[0]
+                if char == '"': {
+                    return_value = process_value(
+                        Value.String(token.parse_string())
+                    )
+                elif char >= '0' && char <= '9' || char == '-':
+                    return_value = process_value(
+                        Value.Number(token.parse_number())
+                    )
+                else:
+                    token.error(
+                        "Expected {}, not '{}'.".format(expected, lexeme)
+                    )
+                }
+            }
+        }
+
+        # Lily requires there be something here, although this will never
+        # actually be reached (if the JSON data is empty, an error is raised in
+        # the main parsing loop).
+        return Value.Null
+    }
+}
+
+define parse(
+    json: String,
+    :comments comments: *Boolean = true,
+    :trailing_commas trailing_commas: *Boolean = true,
+    :non_finite non_finite: *Boolean = true
+): Value {
+    return Parser(json, comments, trailing_commas, non_finite).parse()
+}
+
+define parse_file(
+    path: String,
+    :comments comments: *Boolean = true,
+    :trailing_commas trailing_commas: *Boolean = true,
+    :non_finite non_finite: *Boolean = true
+): Value {
+    return Parser(
+        File.read_to_string(path), comments, trailing_commas, non_finite
+    ).parse()
+}

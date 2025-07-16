@@ -1,0 +1,12 @@
+#[
+    lily-json
+    by python-b5
+
+    A simple, compliant JSON parser and serializer for Lily.
+
+    This is just a shim module to expose only symbols that should be public. The
+    actual source code is in `base_json.lily`. Documentation for the public API
+    is in `manifest/json.lily`.
+]#
+
+import (JSONSyntaxError, Value, parse, parse_file) base_json
