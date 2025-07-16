@@ -1,0 +1,179 @@
+import manifest
+
+### A simple, compliant JSON parser and serializer for Lily.
+library json
+
+### An error in JSON data being parsed.
+###
+### Where appropriate, these errors are accompanied by visual context for where
+### in the JSON data the error was encountered, in the same format Lily uses for
+### its own error messages.
+class JSONSyntaxError(message: String) < Exception(message) {}
+
+### A value of a valid JSON datatype.
+###
+### This is what is returned from the parser, and what can be serialized back
+### into JSON data. You may want to extract your parsed data from this enum to
+### a more specialized data structure, to make working with it more ergonomic.
+scoped enum Value {
+    Object(Hash[String, Value]),
+    Array(List[Value]),
+    String(String),
+    Number(Double),
+    Boolean(Boolean),
+    Null
+
+    ### Converts `self` to a `String` containing JSON data.
+    ###
+    ### If `format` is `true`, the output JSON will be auto-formatted with
+    ### consistent spacing and indentation. If you need your JSON to be
+    ### human-readable, this may be desirable - however, if working with a large
+    ### amount of data, you may want to keep it disabled to keep the size of the
+    ### output JSON small.
+    ###
+    ### If `non_finite` is `true` (the default), non-finite values will be
+    ### serialized.
+    define serialize(
+        :format format: *Boolean = false,
+        :non_finite non_finite: *Boolean = true
+    ): String
+
+    ### Utility function to write serialized JSON data to a file.
+    ###
+    ### `format` and `non_finite` function identically to how they do in
+    ### `Value.encode`.
+    define serialize_file(
+        path: String,
+        :format format: *Boolean = false,
+        :non_finite non_finite: *Boolean = true
+    )
+
+    ### Returns the internal `Hash` contained within `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Object`.
+    define as_hash: Hash[String, Value]
+
+    ### Returns the internal `List` contained within `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Array`.
+    define as_list: List[Value]
+
+    ### Returns the internal `String` contained within `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.String`.
+    define as_string: String
+
+    ### Returns the internal `Double` contained within `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not a `Value.Number`.
+    define as_double: Double
+
+    ### Returns the internal `Double` contained within `self`, casted to an
+    ### `Integer`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Number`.
+    ###
+    ### * `ValueError` if `self` is not an integer / has a fractional part.
+    define as_integer: Integer
+
+    ### Returns the internal `Boolean` contained within `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Boolean`.
+    define as_boolean: Boolean
+
+    ### Returns the `Value` corresponding to `key` in `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Object`.
+    ###
+    ### * `IndexError` if `key` is not in `self`.
+    define get(key: String): Value
+
+    ### Returns the `Value` at `index` in `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Array`.
+    ###
+    ### * `IndexError` if `index` is out of range.
+    define at(index: Integer): Value
+
+    ### Calls `fn` for each `Value` in `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Array` or `Value.Object`.
+    define each(fn: Function(Value))
+
+    ### Calls `fn` for each key/`Value` pair in `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Object`.
+    define each_with_key(fn: Function(String, Value))
+
+    ### Calls `fn` for each index/`Value` pair in `self`.
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if `self` is not of type `Value.Array`.
+    define each_with_index(fn: Function(Integer, Value))
+}
+
+### Parses JSON data contained in a `String` into a `Value`.
+###
+### lily-json supports some optional extensions to the JSON syntax, which are
+### configurable through keyword arguments (and enabled by default):
+###
+### - `comments`: Allow `// ...` and `/* ... */` comments.
+###
+### - `trailing_commas`: Allow objects and arrays to be closed after commas (eg.
+###   `{"a": 1, "b": 2, "c": 3,}` or `[1, 2, 3,]`).
+###
+### - `non_finite`: Treat non-finite floating-point values (`Infinity`,
+###   `-Infinity`, and `NaN`) as valid number literals.
+###
+### # Errors
+###
+### * `ValueError` if `json` is empty.
+###
+### * `JSONSyntaxError` if the JSON data is invalid.
+define parse(
+    json: String,
+    :comments comments: *Boolean = true,
+    :trailing_commas trailing_commas: *Boolean = true,
+    :non_finite non_finite: *Boolean = true
+): Value
+
+### Utility function to read and parse JSON data from a file into a `Value`.
+###
+### The optional keyword arguments here function identically to `parse`'s.
+###
+### # Errors
+###
+### * `IOError` if `path` cannot be opened.
+###
+### * `ValueError` if the file's contents are not valid UTF-8.
+###
+### * `ValueError` if the file is empty.
+###
+### * `JSONSyntaxError` if the JSON data is invalid.
+define parse_file(
+    path: String,
+    :comments comments: *Boolean = true,
+    :trailing_commas trailing_commas: *Boolean = true,
+    :non_finite non_finite: *Boolean = true
+): Value

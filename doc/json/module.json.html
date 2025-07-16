@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>json : Lily</title>
+        <link href="..\docstyle.css" rel="stylesheet">
+    </head>
+    <body role="document">
+        <section id='main'>
+            <h1>Module json</h1>
+<div class='doc'>
+<p>A simple, compliant JSON parser and serializer for Lily.</p></div><h2>Enums</h2>
+<table>
+<tbody>
+<tr>
+<td><a class='reflink' href='enum.Value.html'>Value</a></td>
+<td>A value of a valid JSON datatype.</td>
+</tr></tbody>
+</table><h2>Exceptions</h2>
+<table>
+<tbody>
+<tr>
+<td><a class='reflink' href='error.JSONSyntaxError.html'>JSONSyntaxError</a></td>
+<td>An error in JSON data being parsed.</td>
+</tr></tbody>
+</table><h2>Functions</h2><h3 id='function.parse'>
+<code>define <a href='#function.parse'>parse</a>(json: String, comments: *Boolean, trailing_commas: *Boolean, non_finite: *Boolean): <a href='enum.Value.html'>Value</a></code></h3>
+<div class='doc'>
+<p>Parses JSON data contained in a <code>String</code> into a <code>Value</code>.</p>
+<p>lily-json supports some optional extensions to the JSON syntax, which are configurable through keyword arguments (and enabled by default):</p>
+<p>- <code>comments</code>: Allow <code>// ...</code> and <code>/* ... */</code> comments.</p>
+<p>- <code>trailing_commas</code>: Allow objects and arrays to be closed after commas (eg. <code>{&quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3,}</code> or <code>[1, 2, 3,]</code>).</p>
+<p>- <code>non_finite</code>: Treat non-finite floating-point values (<code>Infinity</code>, <code>-Infinity</code>, and <code>NaN</code>) as valid number literals.</p>
+<div class='linkblock' id='errors.parse'><a href='#errors.parse'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>json</code> is empty.</li>
+<li><code>JSONSyntaxError</code> if the JSON data is invalid.</li>
+</ul></div><h3 id='function.parse_file'>
+<code>define <a href='#function.parse_file'>parse_file</a>(path: String, comments: *Boolean, trailing_commas: *Boolean, non_finite: *Boolean): <a href='enum.Value.html'>Value</a></code></h3>
+<div class='doc'>
+<p>Utility function to read and parse JSON data from a file into a <code>Value</code>.</p>
+<p>The optional keyword arguments here function identically to <code>parse</code>&#39;s.</p>
+<div class='linkblock' id='errors.parse_file'><a href='#errors.parse_file'>Errors</a></div>
+<ul>
+<li><code>IOError</code> if <code>path</code> cannot be opened.</li>
+<li><code>ValueError</code> if the file&#39;s contents are not valid UTF-8.</li>
+<li><code>ValueError</code> if the file is empty.</li>
+<li><code>JSONSyntaxError</code> if the JSON data is invalid.</li>
+</ul></div>
+        </section>
+    </body>
+</html>
