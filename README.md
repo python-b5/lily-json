@@ -47,12 +47,12 @@ foreign libraries). If you need to parse extremely large JSON files, a native
 Lily library is simply not the right tool for the job - in that case, you may
 want to look into writing Lily bindings for a performant C JSON parser.
 
-lily-json requires Lily v2.1 or higher, due to the use of some new `ByteString`
-methods added in that release (in fact, I was the one who implemented them, in
-order to alleviate a performance bottleneck I ran into while working on
-lily-json). If you need to use an older Lily release for whatever reason, you
-will either have to patch lily-json to no longer use those methods or use
-another JSON library (like the tinyjson library discussed in the below section).
+lily-json requires Lily 2.2 or higher, due to the use of variant shorthand to
+improve code readability.
+[v1.0.0](https://github.com/python-b5/lily-json/releases/tag/v1.0.0) supports
+Lily 2.1, if support for that is needed. Versions older than 2.1 are not
+supported by any release, though it probably wouldn't be too difficult to patch
+the module if you're stuck on an old Lily version for whatever reason.
 
 ## Comparison to tinyjson
 

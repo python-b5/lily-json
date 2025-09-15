@@ -466,7 +466,7 @@ scoped enum Value {
             var value = top[0]
 
             match value: {
-                case Value.Object(object):
+                case Object(object):
                     # The auto-formatter would insert extraneous newlines
                     # between the brackets for empty objects if we didn't do
                     # this. Even ignoring that, though, this is probably
@@ -502,7 +502,7 @@ scoped enum Value {
                     }
 
                     continue
-                case Value.Array(array):
+                case Array(array):
                     # Same as with objects.
                     if array.size() == 0: {
                         tokens.push("[]")
@@ -529,7 +529,7 @@ scoped enum Value {
                     }
 
                     continue
-                case Value.String(string):
+                case String(string):
                     # Unlike when parsing strings, the serialized JSON string
                     # may be larger than the original `String`, so there's no
                     # way to know an upper bound in advance to create a buffer.
@@ -594,7 +594,7 @@ scoped enum Value {
 
                     substrings.push("\"")
                     tokens.push(substrings.join())
-                case Value.Number(number):
+                case Number(number):
                     # Lily interpolates the non-finite numbers as "inf", "-inf",
                     # and "nan", but to match other JSON implementations, (which
                     # themselves are matching JavaScript's syntax for these
@@ -621,13 +621,13 @@ scoped enum Value {
                     else:
                         tokens.push(number ++ "")
                     }
-                case Value.Boolean(boolean):
+                case Boolean(boolean):
                     if boolean: {
                         tokens.push("true")
                     else:
                         tokens.push("false")
                     }
-                case Value.Null:
+                case Null:
                     tokens.push("null")
             }
 
@@ -683,7 +683,7 @@ scoped enum Value {
     }
 
     define as_hash: Hash[String, Value] {
-        with self as Value.Object(object): {
+        with self as Object(object): {
             return object
         }
 
@@ -691,7 +691,7 @@ scoped enum Value {
     }
 
     define as_list: List[Value] {
-        with self as Value.Array(array): {
+        with self as Array(array): {
             return array
         }
 
@@ -699,7 +699,7 @@ scoped enum Value {
     }
 
     define as_string: String {
-        with self as Value.String(string): {
+        with self as String(string): {
             return string
         }
 
@@ -707,7 +707,7 @@ scoped enum Value {
     }
 
     define as_double: Double {
-        with self as Value.Number(number): {
+        with self as Number(number): {
             return number
         }
 
@@ -715,7 +715,7 @@ scoped enum Value {
     }
 
     define as_integer: Integer {
-        with self as Value.Number(number): {
+        with self as Number(number): {
             var integer = number.to_i()
             if integer.to_d() != number: {
                 raise ValueError("Value is not an integer.")
@@ -728,7 +728,7 @@ scoped enum Value {
     }
 
     define as_boolean: Boolean {
-        with self as Value.Boolean(boolean): {
+        with self as Boolean(boolean): {
             return boolean
         }
 
@@ -736,7 +736,7 @@ scoped enum Value {
     }
 
     define get(key: String): Value {
-        with self as Value.Object(object): {
+        with self as Object(object): {
             try: {
                 return object[key]
             except KeyError:
@@ -748,7 +748,7 @@ scoped enum Value {
     }
 
     define at(index: Integer): Value {
-        with self as Value.Array(array): {
+        with self as Array(array): {
             try: {
                 return array[index]
             except IndexError:
@@ -761,9 +761,9 @@ scoped enum Value {
 
     define each(fn: Function(Value)) {
         match self: {
-            case Value.Object(object):
+            case Object(object):
                 object.each_value(fn)
-            case Value.Array(array):
+            case Array(array):
                 array.each(fn)
             else:
                 raise ValueError("Value is not an object or array.")
@@ -771,7 +771,7 @@ scoped enum Value {
     }
 
     define each_with_key(fn: Function(String, Value)) {
-        with self as Value.Object(object): {
+        with self as Object(object): {
             object.each_pair(fn)
         }
 
@@ -779,7 +779,7 @@ scoped enum Value {
     }
 
     define each_with_index(fn: Function(Integer, Value)) {
-        with self as Value.Array(array): {
+        with self as Array(array): {
             # `List.each_with_index` expects a `Function` that recieves the
             # index last, as opposed to `Hash.each_pair` which passes the key
             # first. I'd like `Value.each_with_index` and `Value.each_with_key`
@@ -1055,9 +1055,9 @@ class Parser(
     public define process_value(value: Value): Option[Value] {
         if @stack.size(): {
             match @stack[-1]: {
-                case StackFrame.Object(object, name):
+                case Object(object, name):
                     object[name.unwrap()] = value
-                case StackFrame.Array(array):
+                case Array(array):
                     array.push(value)
             }
 
@@ -1084,9 +1084,9 @@ class Parser(
             if option == None: {
                 if @stack.size(): {
                     match @stack[-1]: {
-                        case StackFrame.Object(_, _):
+                        case Object(_, _):
                             eof_error("Expected ',' or '}', not end of file.")
-                        case StackFrame.Array(_):
+                        case Array(_):
                             eof_error("Expected ',' or ']', not end of file.")
                     }
                 else:
@@ -1100,10 +1100,10 @@ class Parser(
             var expected = "a value"
             if @stack.size(): {
                 match @stack[-1]: {
-                    case StackFrame.Object(object, name):
+                    case Object(object, name):
                         if lexeme == "}": {
                             @stack.pop()
-                            return_value = process_value(Value.Object(object))
+                            return_value = process_value(.Object(object))
                             continue
                         }
 
@@ -1131,10 +1131,7 @@ class Parser(
 
                                 if lexeme == "}": {
                                     @stack.pop()
-                                    return_value = process_value(
-                                        Value.Object(object)
-                                    )
-
+                                    return_value = process_value(.Object(object))
                                     continue
                                 }
 
@@ -1173,11 +1170,11 @@ class Parser(
                         token = expect_token("a value")
                         lexeme = token.lexeme
 
-                        @stack[-1] = StackFrame.Object(object, Some(new_name))
-                    case StackFrame.Array(array):
+                        @stack[-1] = .Object(object, Some(new_name))
+                    case Array(array):
                         if lexeme == "]": {
                             @stack.pop()
-                            return_value = process_value(Value.Array(array))
+                            return_value = process_value(.Array(array))
                             continue
                         }
 
@@ -1195,10 +1192,7 @@ class Parser(
 
                                 if lexeme == "]": {
                                     @stack.pop()
-                                    return_value = process_value(
-                                        Value.Array(array)
-                                    )
-
+                                    return_value = process_value(.Array(array))
                                     continue
                                 }
 
@@ -1213,15 +1207,15 @@ class Parser(
 
             # Some tokens are terminals, and require no further parsing.
             if lexeme == "{": {
-                @stack.push(StackFrame.Object([], None))
+                @stack.push(.Object([], None))
             elif lexeme == "[":
-                @stack.push(StackFrame.Array([]))
+                @stack.push(.Array([]))
             elif lexeme == "null":
-                return_value = process_value(Value.Null)
+                return_value = process_value(.Null)
             elif lexeme == "true":
-                return_value = process_value(Value.Boolean(true))
+                return_value = process_value(.Boolean(true))
             elif lexeme == "false":
-                return_value = process_value(Value.Boolean(false))
+                return_value = process_value(.Boolean(false))
             else:
                 # These values aren't permitted by the JSON specification, but
                 # they can sometimes be useful, and so JSON implementations
@@ -1229,13 +1223,13 @@ class Parser(
                 # lily-json allows them by default.
                 if @non_finite: {
                     if lexeme == "Infinity": {
-                        return_value = process_value(Value.Number(infinity))
+                        return_value = process_value(.Number(infinity))
                         continue
                     elif lexeme == "-Infinity":
-                        return_value = process_value(Value.Number(-infinity))
+                        return_value = process_value(.Number(-infinity))
                         continue
                     elif lexeme == "NaN":
-                        return_value = process_value(Value.Number(nan))
+                        return_value = process_value(.Number(nan))
                         continue
                     }
                 }
@@ -1244,13 +1238,9 @@ class Parser(
                 # first character.
                 var char = lexeme[0]
                 if char == '"': {
-                    return_value = process_value(
-                        Value.String(token.parse_string())
-                    )
+                    return_value = process_value(.String(token.parse_string()))
                 elif char >= '0' && char <= '9' || char == '-':
-                    return_value = process_value(
-                        Value.Number(token.parse_number())
-                    )
+                    return_value = process_value(.Number(token.parse_number()))
                 else:
                     token.error(
                         "Expected {}, not '{}'.".format(expected, lexeme)
@@ -1262,7 +1252,7 @@ class Parser(
         # Lily requires there be something here, although this will never
         # actually be reached (if the JSON data is empty, an error is raised in
         # the main parsing loop).
-        return Value.Null
+        return .Null
     }
 }
 
