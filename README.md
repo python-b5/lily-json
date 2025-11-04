@@ -31,11 +31,12 @@ lily-json passes most tests in the
 involve JSON data that is not valid UTF-8, and escape sequences that produce
 characters that are not valid UTF-8. They occur because Lily's `String`s are
 required to only contain valid UTF-8 data - so, in the first case the data
-cannot be read in the first place, and in the second case Lily fails to encode
-the final `String` after parsing the JSON token. The only way around this would
+cannot be read in the first place, and in the second case Lily would fail to
+encode the final `String` after parsing the JSON token (lily-json avoids a
+runtime error in the latter case by inserting a Unicode replacement character,
+but that behavior is not specified in RFC 8259). The only way around this would
 be to use `ByteString`s instead of `String`s, but that is not especially
-idiomatic in Lily, so it seemed the best option was to simply raise errors in
-those cases.
+idiomatic in Lily.
 
 ## Limitations
 
