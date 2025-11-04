@@ -27,12 +27,17 @@ scoped enum Value {
     ###
     ### If `format` is `true`, the output JSON will be auto-formatted with
     ### consistent spacing and indentation. If you need your JSON to be
-    ### human-readable, this may be desirable - however, if working with a large
+    ### human-readable, this may be desirable; however, if working with a large
     ### amount of data, you may want to keep it disabled to keep the size of the
     ### output JSON small.
     ###
-    ### If `non_finite` is `true` (the default), non-finite values will be
-    ### serialized.
+    ### If `non_finite` is `true` (the default), non-finite numbers (`Infinity`,
+    ### `-Infinity`, and `NaN`) will be serialized. 
+    ###
+    ### # Errors
+    ###
+    ### * `ValueError` if a non-finite number is encountered, but `non_finite`
+    ###   is `false`.
     define serialize(
         :_ format: *Boolean = false,
         :_ non_finite: *Boolean = true
@@ -138,13 +143,13 @@ scoped enum Value {
 ### lily-json supports some optional extensions to the JSON syntax, which are
 ### configurable through keyword arguments (and enabled by default):
 ###
-### - `comments`: Allow `// ...` and `/* ... */` comments.
+### * `comments`: Allow `// ...` and `/* ... */` comments.
 ###
-### - `trailing_commas`: Allow objects and arrays to be closed after commas (eg.
+### * `trailing_commas`: Allow objects and arrays to be closed after commas (eg.
 ###   `{"a": 1, "b": 2, "c": 3,}` or `[1, 2, 3,]`).
 ###
-### - `non_finite`: Treat non-finite floating-point values (`Infinity`,
-###   `-Infinity`, and `NaN`) as valid number literals.
+### * `non_finite`: Treat non-finite floating-point values (`Infinity`,
+###   `-Infinity`, and `NaN`) as valid numeric literals.
 ###
 ### # Errors
 ###
