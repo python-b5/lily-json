@@ -12,7 +12,8 @@ class JSONSyntaxError(message: String) < Exception(message) {}
 
 class Token(
     public var @lexeme: String,
-    private var @line: Integer, private var @column: Integer,
+    private var @line: Integer,
+    private var @column: Integer,
     private var @line_string: String
 ) {
     public define error(message: String, index: *Integer = 0) {
@@ -34,7 +35,8 @@ class Token(
             .format(
                 message,
                 outside_prefix,
-                line_prefix, stripped,
+                line_prefix,
+                stripped,
                 outside_prefix,
                 ByteString.create(
                     @column - (@line_string.size() - stripped.size()) + index,
@@ -455,8 +457,8 @@ scoped enum Value {
     Null
 
     define serialize(
-        :format format: *Boolean = false,
-        :non_finite non_finite: *Boolean = true
+        :_ format: *Boolean = false,
+        :_ non_finite: *Boolean = true
     ): String {
         var tokens: List[String] = []
         var stack: List[Tuple[Value, Integer]] = [<[self, 0]>]
@@ -644,7 +646,8 @@ scoped enum Value {
                     if (
                         previous_token != ""
                         && previous_token != "["
-                        && previous_token != "," && previous_token != ":"
+                        && previous_token != ","
+                        && previous_token != ":"
                     ): {
                         substrings.push("\n{}{}".format(indent, token))
                     else:
@@ -676,8 +679,8 @@ scoped enum Value {
 
     define serialize_file(
         path: String,
-        :format format: *Boolean = false,
-        :non_finite non_finite: *Boolean = true
+        :_ format: *Boolean = false,
+        :_ non_finite: *Boolean = true
     ) {
         File.write_to_path(path, serialize(format))
     }
@@ -1258,18 +1261,18 @@ class Parser(
 
 define parse(
     json: String,
-    :comments comments: *Boolean = true,
-    :trailing_commas trailing_commas: *Boolean = true,
-    :non_finite non_finite: *Boolean = true
+    :_ comments: *Boolean = true,
+    :_ trailing_commas: *Boolean = true,
+    :_ non_finite: *Boolean = true
 ): Value {
     return Parser(json, comments, trailing_commas, non_finite).parse()
 }
 
 define parse_file(
     path: String,
-    :comments comments: *Boolean = true,
-    :trailing_commas trailing_commas: *Boolean = true,
-    :non_finite non_finite: *Boolean = true
+    :_ comments: *Boolean = true,
+    :_ trailing_commas: *Boolean = true,
+    :_ non_finite: *Boolean = true
 ): Value {
     return Parser(
         File.read_to_string(path), comments, trailing_commas, non_finite
