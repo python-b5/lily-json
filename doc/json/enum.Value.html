@@ -14,27 +14,39 @@
 <p>This is what is returned from the parser, and what can be serialized back into JSON data. You may want to extract your parsed data from this enum to a more specialized data structure, to make working with it more ergonomic.</p></div>
 <pre>scoped enum Value
 {
-    Object(Hash[String, Value]),
     Array(List[Value]),
-    String(String),
-    Number(Double),
     Boolean(Boolean),
-    Null
+    Null,
+    Number(Double),
+    Object(Hash[String, Value]),
+    String(String)
 }
 </pre>
-<h3 id='method.serialize'>
-<code>define <a href='#method.serialize'>serialize</a>(format: *Boolean, non_finite: *Boolean): String</code></h3>
-<div class='doc'><p>Converts <code>self</code> to a <code>String</code> containing JSON data.</p>
-<p>If <code>format</code> is <code>true</code>, the output JSON will be auto-formatted with consistent spacing and indentation. If you need your JSON to be human-readable, this may be desirable - however, if working with a large amount of data, you may want to keep it disabled to keep the size of the output JSON small.</p>
-<p>If <code>non_finite</code> is <code>true</code> (the default), non-finite values will be serialized.</p></div><h3 id='method.serialize_file'>
-<code>define <a href='#method.serialize_file'>serialize_file</a>(path: String, format: *Boolean, non_finite: *Boolean)</code></h3>
-<div class='doc'><p>Utility function to write serialized JSON data to a file.</p>
-<p><code>format</code> and <code>non_finite</code> function identically to how they do in <code>Value.encode</code>.</p></div><h3 id='method.as_hash'>
+<h3 id='method.as_boolean'>
+<code>define <a href='#method.as_boolean'>as_boolean</a>: Boolean</code></h3>
+<div class='doc'><p>Returns the internal <code>Boolean</code> contained within <code>self</code>.</p>
+<div class='linkblock' id='errors.as_boolean'><a href='#errors.as_boolean'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Boolean</code>.</li>
+</ul></div><h3 id='method.as_double'>
+<code>define <a href='#method.as_double'>as_double</a>: Double</code></h3>
+<div class='doc'><p>Returns the internal <code>Double</code> contained within <code>self</code>.</p>
+<div class='linkblock' id='errors.as_double'><a href='#errors.as_double'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>self</code> is not a <code>Value.Number</code>.</li>
+</ul></div><h3 id='method.as_hash'>
 <code>define <a href='#method.as_hash'>as_hash</a>: Hash[String, <a href='enum.Value.html'>Value</a>]</code></h3>
 <div class='doc'><p>Returns the internal <code>Hash</code> contained within <code>self</code>.</p>
 <div class='linkblock' id='errors.as_hash'><a href='#errors.as_hash'>Errors</a></div>
 <ul>
 <li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Object</code>.</li>
+</ul></div><h3 id='method.as_integer'>
+<code>define <a href='#method.as_integer'>as_integer</a>: Integer</code></h3>
+<div class='doc'><p>Returns the internal <code>Double</code> contained within <code>self</code>, casted to an <code>Integer</code>.</p>
+<div class='linkblock' id='errors.as_integer'><a href='#errors.as_integer'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Number</code>.</li>
+<li><code>ValueError</code> if <code>self</code> is not an integer / has a fractional part.</li>
 </ul></div><h3 id='method.as_list'>
 <code>define <a href='#method.as_list'>as_list</a>: List[<a href='enum.Value.html'>Value</a>]</code></h3>
 <div class='doc'><p>Returns the internal <code>List</code> contained within <code>self</code>.</p>
@@ -47,32 +59,6 @@
 <div class='linkblock' id='errors.as_string'><a href='#errors.as_string'>Errors</a></div>
 <ul>
 <li><code>ValueError</code> if <code>self</code> is not of type <code>Value.String</code>.</li>
-</ul></div><h3 id='method.as_double'>
-<code>define <a href='#method.as_double'>as_double</a>: Double</code></h3>
-<div class='doc'><p>Returns the internal <code>Double</code> contained within <code>self</code>.</p>
-<div class='linkblock' id='errors.as_double'><a href='#errors.as_double'>Errors</a></div>
-<ul>
-<li><code>ValueError</code> if <code>self</code> is not a <code>Value.Number</code>.</li>
-</ul></div><h3 id='method.as_integer'>
-<code>define <a href='#method.as_integer'>as_integer</a>: Integer</code></h3>
-<div class='doc'><p>Returns the internal <code>Double</code> contained within <code>self</code>, casted to an <code>Integer</code>.</p>
-<div class='linkblock' id='errors.as_integer'><a href='#errors.as_integer'>Errors</a></div>
-<ul>
-<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Number</code>.</li>
-<li><code>ValueError</code> if <code>self</code> is not an integer / has a fractional part.</li>
-</ul></div><h3 id='method.as_boolean'>
-<code>define <a href='#method.as_boolean'>as_boolean</a>: Boolean</code></h3>
-<div class='doc'><p>Returns the internal <code>Boolean</code> contained within <code>self</code>.</p>
-<div class='linkblock' id='errors.as_boolean'><a href='#errors.as_boolean'>Errors</a></div>
-<ul>
-<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Boolean</code>.</li>
-</ul></div><h3 id='method.get'>
-<code>define <a href='#method.get'>get</a>(key: String): <a href='enum.Value.html'>Value</a></code></h3>
-<div class='doc'><p>Returns the <code>Value</code> corresponding to <code>key</code> in <code>self</code>.</p>
-<div class='linkblock' id='errors.get'><a href='#errors.get'>Errors</a></div>
-<ul>
-<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Object</code>.</li>
-<li><code>IndexError</code> if <code>key</code> is not in <code>self</code>.</li>
 </ul></div><h3 id='method.at'>
 <code>define <a href='#method.at'>at</a>(index: Integer): <a href='enum.Value.html'>Value</a></code></h3>
 <div class='doc'><p>Returns the <code>Value</code> at <code>index</code> in <code>self</code>.</p>
@@ -86,19 +72,37 @@
 <div class='linkblock' id='errors.each'><a href='#errors.each'>Errors</a></div>
 <ul>
 <li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Array</code> or <code>Value.Object</code>.</li>
-</ul></div><h3 id='method.each_with_key'>
-<code>define <a href='#method.each_with_key'>each_with_key</a>(fn: Function(String, <a href='enum.Value.html'>Value</a>))</code></h3>
-<div class='doc'><p>Calls <code>fn</code> for each key/<code>Value</code> pair in <code>self</code>.</p>
-<div class='linkblock' id='errors.each_with_key'><a href='#errors.each_with_key'>Errors</a></div>
-<ul>
-<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Object</code>.</li>
 </ul></div><h3 id='method.each_with_index'>
 <code>define <a href='#method.each_with_index'>each_with_index</a>(fn: Function(Integer, <a href='enum.Value.html'>Value</a>))</code></h3>
 <div class='doc'><p>Calls <code>fn</code> for each index/<code>Value</code> pair in <code>self</code>.</p>
 <div class='linkblock' id='errors.each_with_index'><a href='#errors.each_with_index'>Errors</a></div>
 <ul>
 <li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Array</code>.</li>
-</ul></div>
+</ul></div><h3 id='method.each_with_key'>
+<code>define <a href='#method.each_with_key'>each_with_key</a>(fn: Function(String, <a href='enum.Value.html'>Value</a>))</code></h3>
+<div class='doc'><p>Calls <code>fn</code> for each key/<code>Value</code> pair in <code>self</code>.</p>
+<div class='linkblock' id='errors.each_with_key'><a href='#errors.each_with_key'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Object</code>.</li>
+</ul></div><h3 id='method.get'>
+<code>define <a href='#method.get'>get</a>(key: String): <a href='enum.Value.html'>Value</a></code></h3>
+<div class='doc'><p>Returns the <code>Value</code> corresponding to <code>key</code> in <code>self</code>.</p>
+<div class='linkblock' id='errors.get'><a href='#errors.get'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if <code>self</code> is not of type <code>Value.Object</code>.</li>
+<li><code>IndexError</code> if <code>key</code> is not in <code>self</code>.</li>
+</ul></div><h3 id='method.serialize'>
+<code>define <a href='#method.serialize'>serialize</a>(format: *Boolean, non_finite: *Boolean): String</code></h3>
+<div class='doc'><p>Converts <code>self</code> to a <code>String</code> containing JSON data.</p>
+<p>If <code>format</code> is <code>true</code>, the output JSON will be auto-formatted with consistent spacing and indentation. If you need your JSON to be human-readable, this may be desirable; however, if working with a large amount of data, you may want to keep it disabled to keep the size of the output JSON small.</p>
+<p>If <code>non_finite</code> is <code>true</code> (the default), non-finite numbers (<code>Infinity</code>, <code>-Infinity</code>, and <code>NaN</code>) will be serialized. </p>
+<div class='linkblock' id='errors.serialize'><a href='#errors.serialize'>Errors</a></div>
+<ul>
+<li><code>ValueError</code> if a non-finite number is encountered, but <code>non_finite</code> is <code>false</code>.</li>
+</ul></div><h3 id='method.serialize_file'>
+<code>define <a href='#method.serialize_file'>serialize_file</a>(path: String, format: *Boolean, non_finite: *Boolean)</code></h3>
+<div class='doc'><p>Utility function to write serialized JSON data to a file.</p>
+<p><code>format</code> and <code>non_finite</code> function identically to how they do in <code>Value.encode</code>.</p></div>
         </section>
     </body>
 </html>

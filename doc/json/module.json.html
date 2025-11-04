@@ -30,9 +30,11 @@
 <div class='doc'>
 <p>Parses JSON data contained in a <code>String</code> into a <code>Value</code>.</p>
 <p>lily-json supports some optional extensions to the JSON syntax, which are configurable through keyword arguments (and enabled by default):</p>
-<p>- <code>comments</code>: Allow <code>// ...</code> and <code>/* ... */</code> comments.</p>
-<p>- <code>trailing_commas</code>: Allow objects and arrays to be closed after commas (eg. <code>{&quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3,}</code> or <code>[1, 2, 3,]</code>).</p>
-<p>- <code>non_finite</code>: Treat non-finite floating-point values (<code>Infinity</code>, <code>-Infinity</code>, and <code>NaN</code>) as valid number literals.</p>
+<ul>
+<li><code>comments</code>: Allow <code>// ...</code> and <code>/* ... */</code> comments.</li>
+<li><code>trailing_commas</code>: Allow objects and arrays to be closed after commas (eg. <code>{&quot;a&quot;: 1, &quot;b&quot;: 2, &quot;c&quot;: 3,}</code> or <code>[1, 2, 3,]</code>).</li>
+<li><code>non_finite</code>: Treat non-finite floating-point values (<code>Infinity</code>, <code>-Infinity</code>, and <code>NaN</code>) as valid numeric literals.</li>
+</ul>
 <div class='linkblock' id='errors.parse'><a href='#errors.parse'>Errors</a></div>
 <ul>
 <li><code>ValueError</code> if <code>json</code> is empty.</li>
