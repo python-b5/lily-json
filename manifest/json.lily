@@ -34,8 +34,8 @@ scoped enum Value {
     ### If `non_finite` is `true` (the default), non-finite values will be
     ### serialized.
     define serialize(
-        :format format: *Boolean = false,
-        :non_finite non_finite: *Boolean = true
+        :_ format: *Boolean = false,
+        :_ non_finite: *Boolean = true
     ): String
 
     ### Utility function to write serialized JSON data to a file.
@@ -44,8 +44,8 @@ scoped enum Value {
     ### `Value.encode`.
     define serialize_file(
         path: String,
-        :format format: *Boolean = false,
-        :non_finite non_finite: *Boolean = true
+        :_ format: *Boolean = false,
+        :_ non_finite: *Boolean = true
     )
 
     ### Returns the internal `Hash` contained within `self`.
@@ -153,9 +153,9 @@ scoped enum Value {
 ### * `JSONSyntaxError` if the JSON data is invalid.
 define parse(
     json: String,
-    :comments comments: *Boolean = true,
-    :trailing_commas trailing_commas: *Boolean = true,
-    :non_finite non_finite: *Boolean = true
+    :_ comments: *Boolean = true,
+    :_ trailing_commas: *Boolean = true,
+    :_ non_finite: *Boolean = true
 ): Value
 
 ### Utility function to read and parse JSON data from a file into a `Value`.
@@ -173,7 +173,7 @@ define parse(
 ### * `JSONSyntaxError` if the JSON data is invalid.
 define parse_file(
     path: String,
-    :comments comments: *Boolean = true,
-    :trailing_commas trailing_commas: *Boolean = true,
-    :non_finite non_finite: *Boolean = true
+    :_ comments: *Boolean = true,
+    :_ trailing_commas: *Boolean = true,
+    :_ non_finite: *Boolean = true
 ): Value
