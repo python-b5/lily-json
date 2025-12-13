@@ -75,11 +75,11 @@ class Token(
         for i in index...index + 3: {
             var char = @lexeme[i]
             if char >= '0' && char <= '9': {
-                codepoint = codepoint << 4 | char.to_i() - '0'.to_i()
+                codepoint = codepoint << 4 | char - '0'
             elif char >= 'A' && char <= 'F':
-                codepoint = codepoint << 4 | char.to_i() - 'A'.to_i() + 10
+                codepoint = codepoint << 4 | char - 'A' + 10
             elif char >= 'a' && char <= 'f':
-                codepoint = codepoint << 4 | char.to_i() - 'a'.to_i() + 10
+                codepoint = codepoint << 4 | char - 'a' + 10
             else:
                 error("Expected a hex digit, not {}.".format(char), i)
             }
@@ -243,11 +243,11 @@ class Token(
         while index < size: {
             var char = @lexeme[index]
             if char >= '1' && char <= '9': {
-                number = number * 10.0 + (char.to_i() - '0'.to_i()).to_d()
+                number = number * 10 + (char - '0').to_d()
                 digits_provided = true
             elif char == '0':
                 if digits_provided || index == size - 1: {
-                    number *= 10.0
+                    number *= 10
                     digits_provided = true
                 else:
                     var next_char = @lexeme[index + 1]
@@ -255,7 +255,7 @@ class Token(
                         next_char == '.'
                         || next_char == 'e' || next_char == 'E'
                     ): {
-                        number *= 10.0
+                        number *= 10
                         digits_provided = true
                     else:
                         error("0 may not precede other digits.", index)
@@ -300,7 +300,7 @@ class Token(
             while index < size: {
                 var char = @lexeme[index]
                 if char >= '0' && char <= '9': {
-                    decimal = decimal * 10 + char.to_i() - '0'.to_i()
+                    decimal = decimal * 10 + char - '0'
                     decimal_places += 1
                 elif char == 'e' || char == 'E':
                     if decimal_places > 0: {
@@ -358,7 +358,7 @@ class Token(
             while index < size: {
                 var char = @lexeme[index]
                 if char >= '0' && char <= '9': {
-                    exponent = exponent * 10 + char.to_i() - '0'.to_i()
+                    exponent = exponent * 10 + char - '0'
                     exponent_digits_provided = true
                 elif !exponent_digits_provided || sign_specified:
                     error("Expected a digit, not {}.".format(char), index)
@@ -380,7 +380,7 @@ class Token(
         }
 
         if negative: {
-            return number * -1.0
+            return number * -1
         else:
             return number
         }
