@@ -6,7 +6,7 @@
     imports all the public symbols from here.
 ]#
 
-import (is_nan, pow, infinity, nan) math
+import math
 import utf8
 
 class JSONSyntaxError(message: String) < Exception(message) {}
@@ -328,7 +328,7 @@ class Token(
                 error("Numbers may not end with a decimal point.", size - 1)
             }
 
-            number += decimal.to_d() / pow(10.0, decimal_places.to_d())
+            number += decimal.to_d() / math.pow(10.0, decimal_places.to_d())
         }
 
         if exponent_provided: {
@@ -373,9 +373,9 @@ class Token(
             }
 
             if exponent_negative: {
-                number *= pow(10.0, -exponent.to_d())
+                number *= math.pow(10.0, -exponent.to_d())
             else:
-                number *= pow(10.0, exponent.to_d())
+                number *= math.pow(10.0, exponent.to_d())
             }
         }
 
@@ -530,19 +530,19 @@ scoped enum Value {
                     # themselves are matching JavaScript's syntax for these
                     # numbers) we want to serialize them as "Infinity",
                     # "-Infinity", and "NaN" instead.
-                    if number == infinity: {
+                    if number == math.infinity: {
                         if non_finite: {
                             tokens.push("Infinity")
                         else:
                             raise ValueError("Non-finite numbers are disabled.")
                         }
-                    elif number == -infinity:
+                    elif number == -math.infinity:
                         if non_finite: {
                             tokens.push("-Infinity")
                         else:
                             raise ValueError("Non-finite numbers are disabled.")
                         }
-                    elif is_nan(number):
+                    elif math.is_nan(number):
                         if non_finite: {
                             tokens.push("NaN")
                         else:
@@ -1155,13 +1155,13 @@ class Parser(
                 # lily-json allows them by default.
                 if @non_finite: {
                     if lexeme == "Infinity": {
-                        return_value = process_value(.Number(infinity))
+                        return_value = process_value(.Number(math.infinity))
                         continue
                     elif lexeme == "-Infinity":
-                        return_value = process_value(.Number(-infinity))
+                        return_value = process_value(.Number(-math.infinity))
                         continue
                     elif lexeme == "NaN":
-                        return_value = process_value(.Number(nan))
+                        return_value = process_value(.Number(math.nan))
                         continue
                     }
                 }
